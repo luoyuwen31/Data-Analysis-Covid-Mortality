@@ -1,6 +1,4 @@
 # Data Mining on Factors of Covid 19 Mortality
-In this project, we aim to select influencial factors of Covid 19 death. 
-
 ## Dataset Description
 1.	Data Source: The COVID Tracking Project (https://covidtracking.com/data)    
 2.	Data size: 2.7MB  
@@ -17,6 +15,9 @@ In this project, we aim to select influencial factors of Covid 19 death.
 -	Positive Test (Antibody, Antigen, PeopleAntibody, PeopleAntigen, Viral)<br>
 -	Recovered<br>
 -	Total Test (EncountersViral, EncountersViralIncrease, Results, ResultsIncrease, Antibody, Antigen, PeopleAntibody, PeopleAntigen, PeopleViral, PeopleViralIncrease, Viral, ViralIncrease)<br>
+
+## Problem of Interest
+In this project, we aim to select influencial factors of Covid 19 death. 
 
 ## Methodology
 There are two types of predictors in the project, numerical predictor 'deathIncrease' and categorical predictor 'variable death direction'.<br>
