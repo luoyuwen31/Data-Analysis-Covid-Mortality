@@ -1,0 +1,250 @@
+
+Load Packages
+```{r}
+library(readr)
+library(MASS)
+library(class)
+library(caret)
+library(e1071)
+library(ISLR)
+library(leaps)
+library(glmnet)
+library(readr)
+```
+
+Read the File
+```{r}
+national_history_date_switch <- read_csv('national2.csv')
+
+Covid <- national_history_date_switch
+Covid[is.na(Covid)] <- 0
+Covid <- Covid[, -c(1:2)]
+```
+```{r}
+# Split the Data
+set.seed(1)
+train=sample(nrow(Covid),size=0.5*nrow(Covid))
+test=-(train)
+
+dim(Covid[train,])
+dim(Covid[test,])
+
+training=Covid[train,]
+testing=Covid[-train,]
+```
+
+BIC
+```{r}
+regfit=regsubsets(deathIncrease~.,data=Covid[train,],nvmax=15)
+
+summary(regfit)
+reg.summary=summary(regfit)
+names(reg.summary)
+
+reg.summary$bic
+plot(reg.summary$bic,xlab="Number of Variables",ylab="BIC") ### BIC indicates the best model has 9 variables
+
+best_n=which.min(reg.summary$bic) #find the model with the lowest BIC
+best_n                            # Model with 9 regressors is the best
+
+coef(regfit,id=best_n)
+```
+
+Stepwise
+```{r}
+model_stepwise <- train(deathIncrease ~ ., data =training,
+                    method = 'glmStepAIC', direction = 'both',
+                    trace = 0,
+               trControl = trainControl(method = 'none', verboseIter = FALSE))
+
+summary(model_stepwise) # This method gives 8 variables
+```
+
+BIC-KNN
+```{r}
+set.seed(276)
+trControl=trainControl(method  = "cv",number  = 10)
+
+knn.fit <- train(deathIncrease ~ inIcuCumulative + hospitalizedIncrease + hospitalizedCurrently + hospitalizedCumulative + onVentilatorCumulative + onVentilatorCurrently + positive + positiveIncrease + totalTestResults, #label
+                 method     = "knn", #the algorithm you select
+                 tuneGrid   = expand.grid(k = 1:10), #grid for hyperparameter
+                 preProcess = c("center","scale"), #standardize input data 
+                 trControl  = trControl,
+                 metric     = "RMSE",
+                 data       = training) #specify data
+knn.fit
+
+test_pred = predict(knn.fit,newdata=testing)
+mean(testing$deathIncrease-test_pred)^2
+```
+
+Stepwise-KNN
+```{r}
+set.seed(4)
+trControl=trainControl(method  = "cv",number  = 10)
+
+knn.fit1 <- train(deathIncrease ~ inIcuCumulative +  hospitalizedIncrease + hospitalizedCurrently +hospitalizedCumulative + onVentilatorCurrently + positive + positiveIncrease + totalTestResults, #label
+                 method     = "knn", #the algorithm you select
+                 tuneGrid   = expand.grid(k = 1:10), #grid for hyperparameter
+                 preProcess = c("center","scale"), #standardize input data 
+                 trControl  = trControl,
+                 metric     = "RMSE",
+                 data       = training) #specify data
+knn.fit1
+
+test_pred1 = predict(knn.fit1,newdata=testing)
+mean(testing$deathIncrease-test_pred1)^2
+```
+
+RandomForest-KNN
+```{r}
+set.seed(8)
+trControl=trainControl(method  = "cv",number  = 10)
+
+knn.fit2 <- train(deathIncrease ~ hospitalizedIncrease + totalTestResultsIncrease + onVentilatorCurrently + hospitalizedCumulative + negativeIncrease + positiveIncrease + inIcuCurrently + totalTestResults, #label
+                 method     = "knn", #the algorithm you select
+                 tuneGrid   = expand.grid(k = 1:10), #grid for hyperparameter
+                 preProcess = c("center","scale"), #standardize input data 
+                 trControl  = trControl,
+                 metric     = "RMSE",
+                 data       = training) #specify data
+knn.fit2
+
+test_pred2 = predict(knn.fit2,newdata=testing)
+mean(testing$deathIncrease-test_pred2)^2
+
+
+# hospitalizedIncrease + totalTestResultsIncrease + onVentilatorCurrently + hospitalizedCumulative + negativeIncrease + positiveIncrease + inIcuCurrently + totalTestResults
+```
+
+Based on KNN results, BIC model have the lowest model when K=3; Stepwise and Random Forest model has lowest test error when k = 2. BIC model has the lowest test error which is 1.286809e-05.
+
+BIC-SVM
+```{r}
+set.seed(8)
+
+tune.out=tune(svm, deathIncrease ~ inIcuCumulative + hospitalizedIncrease + hospitalizedCurrently + hospitalizedCumulative + onVentilatorCumulative + onVentilatorCurrently + positive + positiveIncrease + totalTestResults ,data=training,ranges = list(epsilon = seq(0,1,0.2), cost = 2^(2:8)))
+
+summary(tune.out)
+
+test_pred=predict(tune.out$best.model,newdata=testing)
+mean(testing$deathIncrease-test_pred)^2
+
+### Best BIC model with SVM has epison 0 and cost 8 and test error 0.0009420781
+```
+
+Stpewise-SVM
+```{r}
+set.seed(9)
+
+tune.out1=tune(svm, deathIncrease ~ inIcuCumulative +  hospitalizedIncrease + hospitalizedCurrently +hospitalizedCumulative + onVentilatorCurrently + positive + positiveIncrease + totalTestResults ,data=training,ranges = list(epsilon = seq(0,1,0.2), cost = 2^(2:8)))
+
+summary(tune.out1)
+
+test_pred1=predict(tune.out1$best.model,newdata=testing)
+mean(testing$deathIncrease-test_pred1)^2
+
+### Best Stepwise model with SVM has epison 0 and cost 4 and test error 0.001162792
+```
+
+RandomForest-SVM
+```{r}
+set.seed(11)
+
+tune.out2=tune(svm, deathIncrease ~ hospitalizedIncrease + totalTestResultsIncrease + onVentilatorCurrently + hospitalizedCumulative + negativeIncrease + positiveIncrease + inIcuCurrently + totalTestResults,data=training,ranges = list(epsilon = seq(0,1,0.2), cost = 2^(2:8)))
+
+summary(tune.out2)
+
+test_pred2=predict(tune.out2$best.model,newdata=testing)
+mean(testing$deathIncrease-test_pred2)^2
+
+### Best Random Forest model with SVM has epison 0 and cost 4 and test error 0.09970952
+```
+
+Based on SVM results, the BIC model has lowest test error which is 0.0009420781 and it has epison = 0, cost = 8
+Later, we use Ridge & Lasso regression to control the model complexity which is selected by BIC method
+
+BIC-Lasso/Ridge
+```{r}
+# Split the Data
+x.train=model.matrix(deathIncrease~inIcuCumulative + hospitalizedIncrease + hospitalizedCurrently + hospitalizedCumulative + onVentilatorCumulative + onVentilatorCurrently + positive + positiveIncrease + totalTestResults,Covid[train,])[,-1] #put regressors from training set into a matrix
+y.train=Covid[train,]$deathIncrease #label for training set
+x.test=model.matrix(deathIncrease~inIcuCumulative + hospitalizedIncrease + hospitalizedCurrently + hospitalizedCumulative + onVentilatorCumulative + onVentilatorCurrently + positive + positiveIncrease + totalTestResults,Covid[test,])[,-1] #put regressors from test set into a matrix
+y.test=Covid[test,]$deathIncrease #label for test set
+```
+
+BIC-Ridge
+```{r}
+ridge.mod=glmnet(x.train,y.train,alpha=0) #build a ridge regression: alpha=0
+cv.out=cv.glmnet(x.train,y.train,alpha=0) # use 10 fold cv to select shrinkage parameter
+bestlam_r=cv.out$lambda.min #find the best shrinkage parameter
+bestlam_r    # The lamda value
+```
+
+```{r}
+ridge.pred=predict(ridge.mod,s=bestlam_r,newx=x.test) #making prediction using the best shrinkage parameter
+ridge.err=mean((ridge.pred-y.test)^2) #calculate MSE
+ridge.err
+```
+
+```{r}
+out=glmnet(x.train,y.train,alpha=0)
+predict(out,type="coefficients",s=bestlam_r)[1:9,]
+```
+
+BIC-Lasso
+```{r}
+lasso.mod=glmnet(x.train,y.train,alpha=1) #build a LASSO regression
+cv.out=cv.glmnet(x.train,y.train,alpha=1) # use 10 fold cv to select shrinkage parameter
+bestlam_l=cv.out$lambda.min #find the best shrinkage parameter
+bestlam_l
+```
+
+```{r}
+lasso.pred=predict(lasso.mod,s=bestlam_l,newx=x.test) #making prediction using the best shrinkage parameter
+lasso.err=mean((lasso.pred-y.test)^2) #calculate MSE
+lasso.err
+```
+
+```{r}
+out=glmnet(x.train,y.train,alpha=1)
+predict(out,type="coefficients",s=bestlam_l)[1:9,]
+```
+
+Lasso regression has lower test error 0.1969 than ridge regression 0.2744617 based on model selected with BIC. Moreover, Lasso regreesion indicates variables 'inIcuCumulative', 'hospitalizedCumulative', 'onVentilatorCumulative' and 'postive' have more explanatory power than other variables.
+
+
+Elastic Net
+```{r}
+Elastic.mod=glmnet(x.train,y.train,alpha=0.5) #build a ridge regression: alpha=0
+cv.out=cv.glmnet(x.train,y.train,alpha=0.5) # use 10 fold cv to select shrinkage parameter
+bestlam_e=cv.out$lambda.min #find the best shrinkage parameter
+bestlam_e    # The lamda value
+```
+
+```{r}
+Elastic.pred=predict(Elastic.mod,s=bestlam_e,newx=x.test) #making prediction using the best shrinkage parameter
+Elastic.err=mean((Elastic.pred-y.test)^2) #calculate MSE
+Elastic.err
+```
+
+```{r}
+out=glmnet(x.train,y.train,alpha=0.5)
+predict(out,type="coefficients",s=bestlam_e)[1:9,]
+```
+
+The test error of models with singular independent variable
+```{r}
+library(randomForest)
+
+rf.covid_x=randomForest(deathIncrease~inIcuCumulative + hospitalizedIncrease + hospitalizedCurrently + hospitalizedCumulative + onVentilatorCumulative + onVentilatorCurrently + positive + positiveIncrease + totalTestResults ,data=Covid, subset=train,mtry=5,importance=TRUE,ntree=25)
+
+importance(rf.covid_x)
+
+varImpPlot(rf.covid_x)
+```
+
+```{r}
+model <- lm(deathIncrease~., data = Covid)
+car::vif(model)
+```

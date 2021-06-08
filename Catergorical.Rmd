@@ -1,0 +1,252 @@
+
+Load the Package
+```{r}
+library(readr)
+library(MASS)
+library(class)
+library(caret)
+library(e1071)
+library(ISLR)
+library(leaps)
+library(glmnet)
+library(readr)
+```
+
+Read the file
+```{r}
+covid = read.csv('national2.csv')
+covid = covid[,-c(1:3)] 
+head(covid)
+```
+
+```{r}
+# Split the Train and Test
+train.size = dim(covid)[1] / 2
+train = sample(1:dim(covid)[1], train.size)
+test = -train
+C.train = covid[train, ]
+C.test = covid[test, ]
+
+# Convert to Matrix
+ytrain=C.train$deathDirection
+ytest=C.test$deathDirection
+```
+
+BIC
+```{r}
+regfit=regsubsets(deathDirection~.,data=covid[train,],nvmax=15)
+
+summary(regfit)
+reg.summary=summary(regfit)
+names(reg.summary)
+
+reg.summary$bic
+plot(reg.summary$bic,xlab="Number of Variables",ylab="BIC") ### BIC indicates the best model has 9 variables
+
+best_n=which.min(reg.summary$bic) #find the model with the lowest BIC
+best_n                            # Model with 9 regressors is the best
+
+coef(regfit,id=best_n)
+```
+BIC-Logistic
+```{r}
+# Fit a logistic regression
+glm.fit=glm(C.train$deathDirection~C.train$deathDirection2+C.train$deathDirection3+C.train$deathDirection4+C.train$hospitalizedIncrease+C.train$hospitalizedCumulative+C.train$onVentilatorCurrently+C.train$positiveIncrease+C.train$states+C.train$totalTestResults,family=binomial,data=C.train) 
+
+summary(glm.fit) #print regression output
+```
+```{r}
+# Prediction
+glm.prob= predict(glm.fit, C.train, type = "response") #Probability of death direction goes up
+glm.pred = rep("Down", length(glm.prob)) #Vector of length 316 and set default value for each element as "Down"
+glm.pred[glm.prob > 0.5] = "Up" #down>>up,if the predicted P(up) > 0.5
+
+table(glm.pred, ytest) #Print the Confusion Matrix
+mean(glm.pred==ytest) #Calculate accuracy
+```
+
+BIC-LDA
+```{r}
+library(MASS)
+
+lda.fit=lda(C.train$deathDirection~C.train$deathDirection2+C.train$deathDirection3+C.train$deathDirection4+C.train$hospitalizedIncrease+C.train$hospitalizedCumulative+C.train$onVentilatorCurrently+C.train$positiveIncrease+C.train$states+C.train$totalTestResults,family=binomial,data=C.train) #fit linear discriminant analysis
+
+lda.fit
+```
+```{r}
+lda.pred=predict(lda.fit,C.train) #make predictions for trading days in 2005
+lda.class=lda.pred$class #access prediction label
+table(lda.class,ytest) #print confusion matrix
+mean(lda.class==ytest) #calculate accuracy
+```
+
+BIC-QDA
+```{r}
+qda.fit=qda(C.train$deathDirection~C.train$deathDirection2+C.train$deathDirection3+C.train$deathDirection4+C.train$hospitalizedIncrease+C.train$hospitalizedCumulative+C.train$onVentilatorCurrently+C.train$positiveIncrease+C.train$states+C.train$totalTestResults,family=binomial,data=C.train) #fit a quadratic discriminant analysis
+
+qda.fit
+```
+
+```{r}
+qda.pred=predict(qda.fit,C.train) #make predictions for trading days in 2005
+qda.class=qda.pred$class #access prediction label
+table(qda.class,ytest) #print confusion matrix
+mean(qda.class==ytest) #calculate accuracy
+```
+
+
+Stepwise
+```{r}
+model_stepwise <- train(deathDirection ~ ., data =C.train,
+                    method = 'glmStepAIC', direction = 'both',
+                    trace = 0,
+               trControl = trainControl(method = 'none', verboseIter = FALSE))
+
+summary(model_stepwise) # This method gives 8 variables
+```
+
+Stepwise-Logistic
+```{r}
+glm.fit=glm(C.train$deathDirection ~ C.train$deathDirection2+C.train$deathDirection3+C.train$deathDirection4+C.train$inIcuCumulative+C.train$inIcuCurrently+C.train$positiveIncrease+C.train$states+C.train$totalTestResults,family=binomial,data=C.train) 
+
+summary(glm.fit) #print regression output
+```
+```{r}
+# Prediction
+glm.prob= predict(glm.fit, C.train, type = "response") #Probability of death direction goes up
+glm.pred = rep("Down", length(glm.prob)) #Vector of length 316 and set default value for each element as "Down"
+glm.pred[glm.prob > 0.5] = "Up" #down>>up,if the predicted P(up) > 0.5
+
+table(glm.pred, ytest) #Print the Confusion Matrix
+mean(glm.pred==ytest) #Calculate accuracy
+```
+
+Stepwise-LDA
+```{r}
+lda.fit=lda(C.train$deathDirection ~ C.train$deathDirection2+C.train$deathDirection3+C.train$deathDirection4+C.train$inIcuCumulative+C.train$inIcuCurrently+C.train$positiveIncrease+C.train$states+C.train$totalTestResults,family=binomial,data=C.train) #fit a quadratic discriminant analysis
+
+lda.fit
+```
+
+```{r}
+lda.pred=predict(lda.fit,C.train) #make predictions for trading days in 2005
+lda.class=lda.pred$class #access prediction label
+table(lda.class,ytest) #print confusion matrix
+mean(lda.class==ytest) #calculate accuracy
+```
+Stepwise-QDA
+```{r}
+qda.fit=qda(C.train$deathDirection ~ C.train$deathDirection2+C.train$deathDirection3+C.train$deathDirection4+C.train$inIcuCumulative+C.train$inIcuCurrently+C.train$positiveIncrease+C.train$states+C.train$totalTestResults,family=binomial,data=C.train) #fit a quadratic discriminant analysis
+
+qda.fit
+```
+
+```{r}
+qda.pred=predict(qda.fit,C.train) #make predictions for trading days in 2005
+qda.class=qda.pred$class #access prediction label
+table(qda.class,ytest) #print confusion matrix
+mean(qda.class==ytest) #calculate accuracy
+```
+
+
+Random Forest
+```{r}
+### Random Forest with p/3 = 5 variables for regression model
+
+### Note!!! : sqrt(p) for classification
+
+library(randomForest)
+rf.covid=randomForest(deathDirection~.,data=covid, subset=train,mtry=3,importance=TRUE,ntree=25)
+importance(rf.covid)
+varImpPlot(rf.covid)
+
+# Choose the first 7 variables in Ginis
+# onVentilatorCurrently+totalTestResultsIncrease+positiveIncrease+negativeIncrease+hospitalizedIncrease+totalTestResults+hospitalizedCumulative
+
+```
+
+Random Forest-Logistic
+```{r}
+glm.fit=glm(C.train$deathDirection ~ C.train$onVentilatorCurrently+C.train$totalTestResultsIncrease+C.train$positiveIncrease+C.train$negativeIncrease+C.train$hospitalizedIncrease+C.train$totalTestResults+C.train$hospitalizedCumulative,family=binomial,data=C.train)
+
+summary(glm.fit) #print regression output
+```
+```{r}
+# Prediction
+glm.prob= predict(glm.fit, C.train, type = "response") #Probability of death direction goes up
+glm.pred = rep("Down", length(glm.prob)) #Vector of length 316 and set default value for each element as "Down"
+glm.pred[glm.prob > 0.5] = "Up" #down>>up,if the predicted P(up) > 0.5
+
+table(glm.pred, ytest) #Print the Confusion Matrix
+mean(glm.pred==ytest) #Calculate accuracy
+```
+
+Random Forest-LDA
+```{r}
+lda.fit=lda(C.train$deathDirection ~ C.train$onVentilatorCurrently+C.train$totalTestResultsIncrease+C.train$positiveIncrease+C.train$negativeIncrease+C.train$hospitalizedIncrease+C.train$totalTestResults+C.train$hospitalizedCumulative,family=binomial,data=C.train) #fit a quadratic discriminant analysis
+
+lda.fit
+```
+```{r}
+lda.pred=predict(lda.fit,C.train) #make predictions for trading days in 2005
+lda.class=lda.pred$class #access prediction label
+table(lda.class,ytest) #print confusion matrix
+mean(lda.class==ytest) #calculate accuracy
+```
+
+Random Forest-QDA
+```{r}
+qda.fit=qda(C.train$deathDirection ~ C.train$onVentilatorCurrently+C.train$totalTestResultsIncrease+C.train$positiveIncrease+C.train$negativeIncrease+C.train$hospitalizedIncrease+C.train$totalTestResults+C.train$hospitalizedCumulative,family=binomial,data=C.train) #fit a quadratic discriminant analysis
+
+qda.fit
+```
+
+```{r}
+qda.pred=predict(qda.fit,C.train) #make predictions for trading days in 2005
+qda.class=qda.pred$class #access prediction label
+table(qda.class,ytest) #print confusion matrix
+mean(qda.class==ytest) #calculate accuracy
+```
+
+Full data-Logistic
+```{r}
+glm.fit=glm(C.train$deathDirection ~.,family=binomial,data=C.train)
+
+summary(glm.fit) #print regression output
+```
+```{r}
+# Prediction
+glm.prob= predict(glm.fit, C.train, type = "response") #Probability of death direction goes up
+glm.pred = rep("Down", length(glm.prob)) #Vector of length 316 and set default value for each element as "Down"
+glm.pred[glm.prob > 0.5] = "Up" #down>>up,if the predicted P(up) > 0.5
+
+table(glm.pred, ytest) #Print the Confusion Matrix
+mean(glm.pred==ytest) #Calculate accuracy
+```
+
+Full data-LDA
+```{r}
+lda.fit=lda(C.train$deathDirection ~.,family=binomial,data=C.train) #fit a quadratic discriminant analysis
+
+lda.fit
+```
+```{r}
+lda.pred=predict(lda.fit,C.train) #make predictions for trading days in 2005
+lda.class=lda.pred$class #access prediction label
+table(lda.class,ytest) #print confusion matrix
+mean(lda.class==ytest) #calculate accuracy
+```
+
+Full data-QDA
+```{r}
+qda.fit=qda(C.train$deathDirection ~.,family=binomial,data=C.train) #fit a quadratic discriminant analysis
+
+qda.fit
+```
+
+```{r}
+qda.pred=predict(qda.fit,C.train) #make predictions for trading days in 2005
+qda.class=qda.pred$class #access prediction label
+table(qda.class,ytest) #print confusion matrix
+mean(qda.class==ytest) #calculate accuracy
+```
